@@ -115,7 +115,7 @@ struct Cube {
 
 impl Cube {
 
-    const SIZE: u32 = 3;
+    const SIZE: u32 = 4;
 
 
     pub fn new() -> Cube {
@@ -213,26 +213,34 @@ fn solve_default() {
     solve(LENGTHS);
 }
 
+fn look_for_solvables(start: usize, stride: usize) {
+    let mut lengths = Vec::<u32>::new();
 
-fn main() {
-    let mut lengths: [u32; 17] = [1; 17];
-
-    fn next_lengths(mut lengths: [u32; 17]) -> Option<[u32; 17]> {
+    fn next_lengths(mut lengths: Vec<u32>) -> Vec<u32> {
         let mut i = 0;
         while i < lengths.len() {
             match lengths[i] {
                 1 => {
                     lengths[i] = 2;
-                    return Some(lengths);
+                    return lengths;
                 },
                 2 => {
+                    lengths[i] = 3;
+                    return lengths;
+                },
+                3 => {
                     lengths[i] = 1;
                     i += 1;
                 },
                 _ => unreachable!()
             }
         }
-        None
+        lengths.push(1);
+        lengths
+    }
+
+    for _ in 0..start {
+        lengths = next_lengths(lengths);
     }
 
     const EXPECTED_SUM: u32 = Cube::SIZE * Cube::SIZE * Cube::SIZE;
@@ -240,25 +248,27 @@ fn main() {
     fn sum_lengths(lengths: &[u32]) -> u32 {
         lengths.iter().cloned().fold(1, |acc, x| acc + x)
     }
-    assert_eq!(sum_lengths(LENGTHS), EXPECTED_SUM);
+    //assert_eq!(sum_lengths(LENGTHS), EXPECTED_SUM);
 
-    //let mut i: usize = 0;
+    let mut i: usize = 0;
     loop {
-        /*i += 1;
-        if i % 10_000 == 0 {
-            const TOTAL: usize = 1 << 17;
+        i += 1;
+        if i % 10_000_000 == 0 {
+            /*const TOTAL: usize = 1 << 17;
             let percent = i as f64 / TOTAL as f64;
-            println!("{:.2}%", percent * 100.0);
-        }*/
+            println!("{:.2}%", percent * 100.0);*/
+            eprintln!("({}) i = {}, len = {}", start, i, lengths.len());
+        }
 
         if sum_lengths(&lengths) == EXPECTED_SUM {
             if let Some(_solution) = solve(&lengths) {
                 //println!("Solvable lengths: {:?}, solution: {:?}", lengths, solution);
                 print!("|");
-                for n in lengths {
+                for n in &lengths {
                     match n {
                         1 => print!(" "),
-                        2 => print!("█"),
+                        2 => print!("."),
+                        3 => print!(":"),
                         _ => unreachable!()
                     }
                 }
@@ -266,13 +276,44 @@ fn main() {
             }
         }
 
-        if let Some(next) = next_lengths(lengths) {
+        /*if let Some(next) = next_lengths(lengths) {
             lengths = next;
         } else {
             break;
+        }*/
+        for _ in 0..stride {
+            lengths = next_lengths(lengths);
         }
     }
-    println!("Fin.");
+    //println!("Fin.");
+}
+
+
+fn main() {
+    let n_threads: usize = match std::thread::available_parallelism() {
+        Ok(n) => {
+            eprintln!("parallelism: {}", n);
+            n.into()
+        },
+        Err(e) => {
+            const ASSUMED: usize = 4;
+            eprintln!("couldn't figure out parallelism (reason: {}), assuming {}", e, ASSUMED);
+            ASSUMED
+        }
+    };
+
+    let mut handles = Vec::<std::thread::JoinHandle<()>>::new();
+
+    for i in 0..n_threads {
+        let a = i.clone();
+        let b = n_threads.clone();
+        let handle = std::thread::spawn(move || look_for_solvables(a, b));
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        let _ = handle.join();
+    }
 }
 
 
